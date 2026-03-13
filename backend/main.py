@@ -10,7 +10,7 @@ from sqlalchemy import func
 
 from backend.config import (
     DATA_DIR, FRONTEND_URL, SNAPSHOT_INTERVAL,
-    FOOTBALL_API_KEY, FOOTBALL_API_BASE, FOOTBALL_LEAGUE_ID, FOOTBALL_SEASON,
+    FOOTBALL_API_KEY, FOOTBALL_API_BASE, FOOTBALL_COMPETITION,
 )
 from backend.collector.football_api import FootballAPICollector
 from backend.models.database import init_db, SessionLocal
@@ -310,12 +310,11 @@ async def lifespan(app: FastAPI):
     if FOOTBALL_API_KEY:
         football_collector = FootballAPICollector(
             api_key=FOOTBALL_API_KEY,
-            league_id=FOOTBALL_LEAGUE_ID,
-            season=FOOTBALL_SEASON,
+            competition=FOOTBALL_COMPETITION,
             base_url=FOOTBALL_API_BASE,
         )
         football_task = asyncio.create_task(football_collector.start())
-        logger.info("Football API collector started (league=%s)", FOOTBALL_LEAGUE_ID)
+        logger.info("Football API collector started (competition=%s)", FOOTBALL_COMPETITION)
     else:
         logger.info("No FOOTBALL_API_KEY set — using seed data only")
 

@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import os
-from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
-
 BASE_DIR = Path(__file__).parent
+PROJECT_ROOT = BASE_DIR.parent
+
+load_dotenv(PROJECT_ROOT / ".env")
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = BASE_DIR / "xingometro.db"
 
@@ -31,8 +31,7 @@ SSE_BUFFER_SIZE = 50
 # CORS
 FRONTEND_URL = "http://localhost:5173"
 
-# API-Football
+# football-data.org v4
 FOOTBALL_API_KEY = os.environ.get("FOOTBALL_API_KEY", "")
-FOOTBALL_API_BASE = "https://v3.football.api-sports.io"
-FOOTBALL_LEAGUE_ID = 71  # Brasileirão Série A
-FOOTBALL_SEASON = int(os.environ.get("FOOTBALL_SEASON", str(datetime.now().year)))
+FOOTBALL_API_BASE = "https://api.football-data.org/v4"
+FOOTBALL_COMPETITION = "BSA"  # Brasileirão Série A
