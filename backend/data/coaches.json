@@ -1,0 +1,22 @@
+[
+  {"id": 1, "name": "Filipe Luís", "aliases": ["filipe", "filipe luís", "professor filipe"], "team_id": 1},
+  {"id": 2, "name": "Abel Ferreira", "aliases": ["abel", "abelindo", "português", "abel ferreira"], "team_id": 2},
+  {"id": 3, "name": "Luis Zubeldía", "aliases": ["zubeldía", "zubeldia", "argentino", "gringo"], "team_id": 3},
+  {"id": 4, "name": "Ramón Díaz", "aliases": ["ramón", "ramon diaz", "ramon", "el pelado"], "team_id": 4},
+  {"id": 5, "name": "Mano Menezes", "aliases": ["mano", "mano menezes", "professor mano"], "team_id": 5},
+  {"id": 6, "name": "Artur Jorge", "aliases": ["artur", "artur jorge", "mister"], "team_id": 6},
+  {"id": 7, "name": "Álvaro Pacheco", "aliases": ["álvaro", "pacheco", "alvaro pacheco"], "team_id": 7},
+  {"id": 8, "name": "Martín Varini", "aliases": ["varini", "martin varini", "uruguaio"], "team_id": 8},
+  {"id": 9, "name": "Roger Machado", "aliases": ["roger", "roger machado", "rogério"], "team_id": 9},
+  {"id": 10, "name": "Renato Gaúcho", "aliases": ["renatão", "renato", "renato portaluppi", "gaúcho"], "team_id": 10},
+  {"id": 11, "name": "Fernando Diniz", "aliases": ["diniz", "fernando diniz", "dinizismo"], "team_id": 11},
+  {"id": 12, "name": "Gabriel Milito", "aliases": ["milito", "gabriel milito", "el jefe"], "team_id": 12},
+  {"id": 13, "name": "Rogério Ceni", "aliases": ["ceni", "rogério", "rogério ceni", "goleiro"], "team_id": 13},
+  {"id": 14, "name": "Juan Pablo Vojvoda", "aliases": ["vojvoda", "juan pablo", "argentino"], "team_id": 14},
+  {"id": 15, "name": "Pedro Caixinha", "aliases": ["caixinha", "pedro caixinha", "português"], "team_id": 15},
+  {"id": 16, "name": "Pedro Caixinha", "aliases": ["fernando seabra", "seabra"], "team_id": 16},
+  {"id": 17, "name": "Fábio Matias", "aliases": ["fábio", "matias", "fábio matias"], "team_id": 17},
+  {"id": 18, "name": "Thiago Carpini", "aliases": ["carpini", "thiago carpini", "thiago"], "team_id": 18},
+  {"id": 19, "name": "Léo Condé", "aliases": ["condé", "léo", "léo condé"], "team_id": 19},
+  {"id": 20, "name": "Pepa", "aliases": ["pepa", "pedro ribeiro"], "team_id": 20}
+]

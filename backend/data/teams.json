@@ -1,0 +1,22 @@
+[
+  {"id": 1, "name": "Flamengo", "short_name": "FLA", "aliases": ["mengão", "mengo", "urubu", "rubro-negro", "flamenguista", "mengudo", "nação"]},
+  {"id": 2, "name": "Palmeiras", "short_name": "PAL", "aliases": ["verdão", "porco", "palestra", "alviverde", "palmeirense", "periquito", "porcada"]},
+  {"id": 3, "name": "São Paulo", "short_name": "SAO", "aliases": ["tricolor", "soberano", "spfc", "são-paulino", "trikas", "morumbi"]},
+  {"id": 4, "name": "Corinthians", "short_name": "COR", "aliases": ["timão", "coringão", "todo poderoso", "corinthiano", "fiel", "mosqueteiro", "vai corinthians"]},
+  {"id": 5, "name": "Fluminense", "short_name": "FLU", "aliases": ["flu", "tricolor carioca", "fluzão", "pó de arroz", "nense", "time de guerreiros", "fluminensense"]},
+  {"id": 6, "name": "Botafogo", "short_name": "BOT", "aliases": ["fogão", "glorioso", "bota", "estrela solitária", "botafoguense", "alvinegro"]},
+  {"id": 7, "name": "Vasco da Gama", "short_name": "VAS", "aliases": ["vascão", "gigante da colina", "cruzmaltino", "vascaíno", "almirante", "vasco"]},
+  {"id": 8, "name": "Athletico Paranaense", "short_name": "CAP", "aliases": ["furacão", "athletico", "cap", "rubro-negro paranaense", "atleticano"]},
+  {"id": 9, "name": "Internacional", "short_name": "INT", "aliases": ["inter", "colorado", "inter de porto alegre", "saci", "celeiro de ases"]},
+  {"id": 10, "name": "Grêmio", "short_name": "GRE", "aliases": ["tricolor gaúcho", "imortal", "grêmio", "gremista", "renato gaúcho fc"]},
+  {"id": 11, "name": "Cruzeiro", "short_name": "CRU", "aliases": ["raposa", "cabuloso", "cruzeirense", "celeste", "manto azul", "toca da raposa"]},
+  {"id": 12, "name": "Atlético Mineiro", "short_name": "CAM", "aliases": ["galo", "galão", "atleticano", "alvinegro mineiro", "galo forte", "massa"]},
+  {"id": 13, "name": "Bahia", "short_name": "BAH", "aliases": ["tricolor de aço", "bahêa", "esquadrão", "tricolor baiano", "bahia"]},
+  {"id": 14, "name": "Fortaleza", "short_name": "FOR", "aliases": ["leão", "fortaleza ec", "tricolor de aço", "leão do pici", "laion"]},
+  {"id": 15, "name": "Santos", "short_name": "SAN", "aliases": ["peixe", "santástico", "alvinegro praiano", "santos fc", "peixão"]},
+  {"id": 16, "name": "RB Bragantino", "short_name": "RBB", "aliases": ["massa bruta", "bragantino", "red bull", "braga"]},
+  {"id": 17, "name": "Juventude", "short_name": "JUV", "aliases": ["ju", "papo", "alviverde gaúcho", "jaconero"]},
+  {"id": 18, "name": "Vitória", "short_name": "VIT", "aliases": ["leão da barra", "vitória ba", "rubro-negro baiano", "vitonça"]},
+  {"id": 19, "name": "Ceará", "short_name": "CEA", "aliases": ["vozão", "vovô", "ceará sc", "alvinegro cearense", "mais querido"]},
+  {"id": 20, "name": "Sport", "short_name": "SPO", "aliases": ["leão", "sport recife", "rubro-negro pernambucano", "sportista", "leão da ilha"]}
+]
