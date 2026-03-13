@@ -8,7 +8,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func
 
-from backend.config import DATA_DIR, FRONTEND_URL, SNAPSHOT_INTERVAL
+from backend.config import (
+    DATA_DIR, FRONTEND_URL, SNAPSHOT_INTERVAL,
+    FOOTBALL_API_KEY, FOOTBALL_API_BASE, FOOTBALL_LEAGUE_ID, FOOTBALL_SEASON,
+)
+from backend.collector.football_api import FootballAPICollector
 from backend.models.database import init_db, SessionLocal
 from backend.models.team import Team
 from backend.models.coach import Coach
@@ -300,6 +304,21 @@ async def lifespan(app: FastAPI):
     set_connected(True)
     snapshot_task = asyncio.create_task(_snapshot_loop())
 
+    # Football API collector (optional, needs API key)
+    football_collector = None
+    football_task = None
+    if FOOTBALL_API_KEY:
+        football_collector = FootballAPICollector(
+            api_key=FOOTBALL_API_KEY,
+            league_id=FOOTBALL_LEAGUE_ID,
+            season=FOOTBALL_SEASON,
+            base_url=FOOTBALL_API_BASE,
+        )
+        football_task = asyncio.create_task(football_collector.start())
+        logger.info("Football API collector started (league=%s)", FOOTBALL_LEAGUE_ID)
+    else:
+        logger.info("No FOOTBALL_API_KEY set — using seed data only")
+
     logger.info("Xingômetro started! Collecting from Bluesky Jetstream...")
     yield
 
@@ -307,6 +326,11 @@ async def lifespan(app: FastAPI):
     await collector.stop()
     snapshot_task.cancel()
     collector_task.cancel()
+
+    if football_collector:
+        await football_collector.stop()
+    if football_task:
+        football_task.cancel()
 
 
 app = FastAPI(title="Xingômetro API", lifespan=lifespan)

@@ -13,6 +13,7 @@ class Match(Base):
     __tablename__ = "matches"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    external_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True, unique=True)
     round: Mapped[int] = mapped_column(Integer, nullable=False)
     home_team_id: Mapped[int] = mapped_column(Integer, ForeignKey("teams.id"), nullable=False)
     away_team_id: Mapped[int] = mapped_column(Integer, ForeignKey("teams.id"), nullable=False)
