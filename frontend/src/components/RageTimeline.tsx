@@ -59,9 +59,8 @@ export default function RageTimeline({ matchId: externalMatchId, round }: RageTi
     setLoading(true);
     fetchTimeline(selectedMatchId)
       .then((data) => {
-        setTimeline(data);
-        const match = matches.find((m) => m.id === selectedMatchId);
-        setEvents(match?.events ?? []);
+        setTimeline(data.points || []);
+        setEvents(data.events || []);
       })
       .catch(() => {
         setTimeline([]);
@@ -137,7 +136,10 @@ export default function RageTimeline({ matchId: externalMatchId, round }: RageTi
                 color: "#fff",
                 fontSize: "12px",
               }}
-              formatter={(value: number) => [value.toFixed(2), "Raiva"]}
+              formatter={(value: number | undefined) => [
+                typeof value === "number" ? value.toFixed(2) : "0",
+                "Raiva",
+              ]}
               labelFormatter={(label) => `Minuto ${label}`}
             />
             <Line

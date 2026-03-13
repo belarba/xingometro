@@ -57,7 +57,7 @@ def get_team_stats(team_id: int, db: Session = Depends(get_db)):
 
 @router.get("/words")
 def get_top_words(
-    round: Optional[int] = Query(None),
+    round_num: Optional[int] = Query(None, alias="round"),
     team_id: Optional[int] = Query(None),
     limit: int = Query(30, ge=1, le=100),
     db: Session = Depends(get_db),
@@ -68,9 +68,9 @@ def get_top_words(
 
     if team_id is not None:
         query = query.filter(Post.team_id == team_id)
-    if round is not None:
+    if round_num is not None:
         query = query.join(Match, Post.match_id == Match.id).filter(
-            Match.round == round
+            Match.round == round_num
         )
 
     posts = query.limit(5000).all()

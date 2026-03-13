@@ -17,7 +17,7 @@ router = APIRouter()
 
 @router.get("/rankings")
 def get_rankings(
-    round: Optional[int] = Query(None),
+    round_num: Optional[int] = Query(None, alias="round"),
     limit: int = Query(20, ge=1, le=20),
     db: Session = Depends(get_db),
 ):
@@ -29,9 +29,9 @@ def get_rankings(
         func.count(Post.id).label("post_count"),
     ).join(Team, Post.team_id == Team.id)
 
-    if round is not None:
+    if round_num is not None:
         query = query.join(Match, Post.match_id == Match.id).filter(
-            Match.round == round
+            Match.round == round_num
         )
 
     query = query.filter(Post.team_id.isnot(None))
@@ -56,7 +56,7 @@ def get_rankings(
 
 @router.get("/rankings/coaches")
 def get_coach_rankings(
-    round: Optional[int] = Query(None),
+    round_num: Optional[int] = Query(None, alias="round"),
     limit: int = Query(10, ge=1, le=20),
     db: Session = Depends(get_db),
 ):
@@ -68,9 +68,9 @@ def get_coach_rankings(
         func.count(Post.id).label("post_count"),
     ).join(Coach, Post.coach_id == Coach.id).join(Team, Coach.team_id == Team.id)
 
-    if round is not None:
+    if round_num is not None:
         query = query.join(Match, Post.match_id == Match.id).filter(
-            Match.round == round
+            Match.round == round_num
         )
 
     query = query.filter(Post.coach_id.isnot(None))

@@ -15,14 +15,14 @@ router = APIRouter()
 
 @router.get("/matches")
 def get_matches(
-    round: Optional[int] = Query(None),
+    round_num: Optional[int] = Query(None, alias="round"),
     status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     query = db.query(Match)
 
-    if round is not None:
-        query = query.filter(Match.round == round)
+    if round_num is not None:
+        query = query.filter(Match.round == round_num)
     if status is not None:
         query = query.filter(Match.status == status)
 

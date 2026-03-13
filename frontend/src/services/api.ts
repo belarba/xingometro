@@ -29,7 +29,9 @@ export async function fetchCoachRankings(round?: number): Promise<CoachRanking[]
   return res.json();
 }
 
-export async function fetchTimeline(matchId: number): Promise<TimelinePoint[]> {
+export async function fetchTimeline(
+  matchId: number
+): Promise<{ points: TimelinePoint[]; events: { minute: number; type: string; team_id: number; description: string }[] }> {
   const res = await fetch(`/api/timeline/${matchId}`);
   if (!res.ok) throw new Error("Failed to fetch timeline");
   return res.json();
