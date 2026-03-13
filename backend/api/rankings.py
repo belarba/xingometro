@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -13,7 +17,7 @@ router = APIRouter()
 
 @router.get("/rankings")
 def get_rankings(
-    round: int | None = Query(None),
+    round: Optional[int] = Query(None),
     limit: int = Query(20, ge=1, le=20),
     db: Session = Depends(get_db),
 ):
@@ -52,7 +56,7 @@ def get_rankings(
 
 @router.get("/rankings/coaches")
 def get_coach_rankings(
-    round: int | None = Query(None),
+    round: Optional[int] = Query(None),
     limit: int = Query(10, ge=1, le=20),
     db: Session = Depends(get_db),
 ):

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, distinct
 from sqlalchemy.orm import Session
@@ -11,8 +15,8 @@ router = APIRouter()
 
 @router.get("/matches")
 def get_matches(
-    round: int | None = Query(None),
-    status: str | None = Query(None),
+    round: Optional[int] = Query(None),
+    status: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     query = db.query(Match)

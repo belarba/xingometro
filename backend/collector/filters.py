@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from unidecode import unidecode
 
 from backend.config import FOOTBALL_TERMS

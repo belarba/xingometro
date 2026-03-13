@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Integer, Float, Text, JSON, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
@@ -11,8 +14,8 @@ class RageSnapshot(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     team_id: Mapped[int] = mapped_column(Integer, ForeignKey("teams.id"), nullable=False)
-    match_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("matches.id"), nullable=True)
-    round: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    match_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("matches.id"), nullable=True)
+    round: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     period: Mapped[str] = mapped_column(Text, nullable=False)
     post_count: Mapped[int] = mapped_column(Integer, default=0)
     avg_rage_score: Mapped[float] = mapped_column(Float, default=0.0)

@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -53,8 +57,8 @@ def get_team_stats(team_id: int, db: Session = Depends(get_db)):
 
 @router.get("/words")
 def get_top_words(
-    round: int | None = Query(None),
-    team_id: int | None = Query(None),
+    round: Optional[int] = Query(None),
+    team_id: Optional[int] = Query(None),
     limit: int = Query(30, ge=1, le=100),
     db: Session = Depends(get_db),
 ):
