@@ -10,7 +10,7 @@ Análise de sentimento em tempo real de posts do Bluesky durante jogos do Brasil
 
 - **Backend**: Python 3.12+ / FastAPI / SQLite (via SQLAlchemy)
 - **Frontend**: React 18 / Vite / Recharts (gráficos) / TailwindCSS
-- **Coleta**: Bluesky Jetstream (WebSocket) + scraping complementar
+- **Coleta**: Bluesky Jetstream (WebSocket)
 - **Comunicação live**: Server-Sent Events (SSE) do backend para o frontend
 - **Deploy**: um único processo (uvicorn)
 
@@ -40,8 +40,7 @@ backend/
 ├── main.py                 # FastAPI app, startup/shutdown, CORS
 ├── collector/
 │   ├── jetstream.py        # Conexão WebSocket ao Bluesky Jetstream
-│   ├── filters.py          # Filtragem por termos/hashtags do futebol BR
-│   └── scraper.py          # Scraping complementar de outras fontes
+│   └── filters.py          # Filtragem por termos/hashtags do futebol BR
 ├── analyzer/
 │   ├── dictionary.py       # Carrega e busca no dicionário de xingamentos
 │   ├── scorer.py           # Calcula rage_score com multiplicadores
@@ -62,7 +61,8 @@ backend/
 ├── data/
 │   ├── swear_dictionary.json   # Dicionário de xingamentos com pesos
 │   ├── teams.json              # Times do Brasileirão com aliases
-│   └── coaches.json            # Técnicos com aliases
+│   ├── coaches.json            # Técnicos com aliases
+│   └── matches.json            # Jogos da rodada (seed data com horários)
 └── config.py               # Settings (Jetstream URL, DB path, etc.)
 ```
 
@@ -104,7 +104,6 @@ frontend/
 | name       | TEXT    | Nome oficial ("Flamengo")                       |
 | short_name | TEXT    | Sigla ("FLA")                                   |
 | aliases    | JSON    | Lista de apelidos ["mengão", "mengo", "urubu"]  |
-| coach_id   | INTEGER | FK → coaches (técnico atual)                    |
 
 ### coaches
 
@@ -113,7 +112,7 @@ frontend/
 | id      | INTEGER | PK autoincrement                   |
 | name    | TEXT    | Nome ("Tite")                      |
 | aliases | JSON    | Apelidos ["adenor"]                |
-| team_id | INTEGER | FK → teams                         |
+| team_id | INTEGER | FK → teams (técnico pertence ao time) |
 
 ### matches
 
@@ -126,8 +125,11 @@ frontend/
 | home_score   | INTEGER  | Placar mandante                    |
 | away_score   | INTEGER  | Placar visitante                   |
 | status       | TEXT     | "scheduled", "live", "finished"    |
+| events       | JSON     | Lista de eventos: [{"minute": 23, "type": "goal", "team_id": 5, "description": "Gol de Gabigol"}] |
 | started_at   | DATETIME | Início do jogo                     |
 | finished_at  | DATETIME | Fim do jogo (nullable)             |
+
+**Ciclo de vida dos matches:** jogos são cadastrados manualmente via `matches.json` (seed data com horários da rodada). O status transiciona automaticamente: `scheduled` → `live` quando `started_at` é atingido, `live` → `finished` após 120 minutos (margem para acréscimos). Eventos do jogo (gols, cartões) são inseridos manualmente ou via endpoint `POST /api/matches/{id}/events` durante o jogo.
 
 ### posts
 
@@ -162,7 +164,7 @@ frontend/
 | snapshot_at     | DATETIME | Timestamp do snapshot                            |
 
 **Decisões:**
-- `rage_snapshots` é atualizada a cada 30 segundos durante jogos ao vivo para evitar queries pesadas no SQLite
+- `rage_snapshots` é atualizada a cada 30 segundos durante jogos ao vivo via `asyncio.create_task` com loop periódico (background task do FastAPI), evitando queries pesadas no SQLite
 - `match_id` nullable em posts permite capturar xingamentos fora de horário de jogo
 - `swear_words` em JSON para análise rápida sem JOIN adicional
 
@@ -209,14 +211,14 @@ def calculate_rage(post_text: str) -> float:
     if exclamation_count(post_text) > 2: base *= 1.1   # "fora!!!"
     if len(matches) > 3:                base *= 1.3   # acúmulo
 
-    return min(base, 10.0)
+    return min(base, 10.0)  # clamp: multiplicadores podem ultrapassar 10, normaliza aqui
 ```
 
 ### Detecção de Alvo
 
 1. **Busca por aliases** — normaliza o texto e busca matches contra `teams.json` e `coaches.json`
 2. **Contexto de jogo** — se há jogo ao vivo e o post menciona termos genéricos ("time", "esse time"), associa ao time do jogo em andamento
-3. **Desambiguação** — post que menciona 2 times: analisa qual está sendo xingado (presença de xingamento adjacente ao nome)
+3. **Desambiguação** — post que menciona 2 times: busca xingamento na mesma frase (split por pontuação) que contém o nome do time. Se ambos estão na mesma frase, associa ao time cujo nome/alias está mais próximo (menor distância em tokens) de um termo do dicionário
 
 ## Dashboard — Componentes
 
@@ -228,7 +230,7 @@ Grid de 2 colunas:
 
 ### Componentes
 
-1. **Navbar** — Logo, "Brasileirão 2025", indicador AO VIVO, rodada atual, jogos em andamento
+1. **Navbar** — Logo, "Brasileirão 2026", indicador AO VIVO, rodada atual, jogos em andamento
 2. **RageRanking** — Barras horizontais ordenadas por avg_rage_score. Cada barra mostra: posição, nome do time, barra colorida (vermelho→amarelo→cinza), score numérico, contagem de posts. Filtro por rodada.
 3. **RageTimeline** — Gráfico de linha (Recharts) mostrando rage_score agregado ao longo do tempo de um jogo. Anotações em eventos: gols, cartões, substituições. Eixo X = minutos do jogo (0'-90'+).
 4. **TopCoach** — Card destacando o técnico com maior rage_score médio. Mostra: nome, time, score, top 3 palavras direcionadas a ele.
@@ -255,6 +257,30 @@ Grid de 2 colunas:
 | GET    | /api/words                  | Top palavras (query: round, team_id)            |
 | GET    | /api/live/feed              | SSE stream de posts analisados em tempo real    |
 | GET    | /api/live/status            | Status da coleta (conectado, posts/min)         |
+| POST   | /api/matches/{id}/events    | Adiciona evento ao jogo (gol, cartão, etc.)     |
+
+### Formato SSE
+
+Cada evento SSE em `/api/live/feed` envia JSON:
+
+```json
+{
+  "type": "new_post",
+  "data": {
+    "id": 12345,
+    "author_handle": "@torcedor",
+    "text": "FORA TÉCNICO!!!",
+    "team_id": 5,
+    "team_name": "Corinthians",
+    "coach_id": 3,
+    "rage_score": 8.7,
+    "swear_words": ["fora"],
+    "created_at": "2026-04-15T21:32:05Z"
+  }
+}
+```
+
+Tipos de evento: `new_post`, `ranking_update` (a cada 30s com novo snapshot), `match_event` (gol, cartão).
 
 ## Configuração e Dados Iniciais
 
@@ -283,5 +309,5 @@ Dicionário curado com ~200 termos iniciais organizados por nível. Inclui:
 - Bot Telegram/Discord
 - Análise via LLM
 - Deploy em cloud (foco em rodar local)
-- Scraping do Twitter/X (foco no Bluesky)
+- Scraping de outras redes (Twitter/X, Reddit, etc.) — v1 foca apenas no Bluesky
 - App mobile
