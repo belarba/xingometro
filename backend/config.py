@@ -28,8 +28,11 @@ SNAPSHOT_INTERVAL = 30
 # Máximo de posts no feed SSE (buffer)
 SSE_BUFFER_SIZE = 50
 
-# CORS
-FRONTEND_URL = "http://localhost:5173"
+# CORS — in production, set FRONTEND_URL to your Railway domain
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+
+# Port (Railway sets PORT env var)
+PORT = int(os.environ.get("PORT", "8000"))
 
 # football-data.org v4
 FOOTBALL_API_KEY = os.environ.get("FOOTBALL_API_KEY", "")

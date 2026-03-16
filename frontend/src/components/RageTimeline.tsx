@@ -136,8 +136,8 @@ export default function RageTimeline({ matchId: externalMatchId, round }: RageTi
                 color: "#fff",
                 fontSize: "12px",
               }}
-              formatter={(value: number | undefined) => [
-                typeof value === "number" ? value.toFixed(2) : "0",
+              formatter={(value) => [
+                typeof value === "number" ? (value as number).toFixed(2) : "0",
                 "Raiva",
               ]}
               labelFormatter={(label) => `Minuto ${label}`}

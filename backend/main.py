@@ -3,13 +3,16 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from sqlalchemy import func
 
 from backend.config import (
-    DATA_DIR, FRONTEND_URL, SNAPSHOT_INTERVAL,
+    DATA_DIR, FRONTEND_URL, SNAPSHOT_INTERVAL, PROJECT_ROOT,
     FOOTBALL_API_KEY, FOOTBALL_API_BASE, FOOTBALL_COMPETITION,
     REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_SUBREDDITS, REDDIT_POLL_INTERVAL,
     TWITTER_COOKIES, TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL, TWITTER_EMAIL_PASSWORD,
@@ -394,3 +397,16 @@ app.include_router(timeline.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(matches.router, prefix="/api")
 app.include_router(live.router, prefix="/api")
+
+# --- Serve frontend static files in production ---
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    @app.get("/{path:path}")
+    async def spa_fallback(path: str):
+        """Serve index.html for any non-API route (SPA client-side routing)."""
+        file_path = FRONTEND_DIST / path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        return FileResponse(FRONTEND_DIST / "index.html")
