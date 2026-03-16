@@ -35,3 +35,19 @@ FRONTEND_URL = "http://localhost:5173"
 FOOTBALL_API_KEY = os.environ.get("FOOTBALL_API_KEY", "")
 FOOTBALL_API_BASE = "https://api.football-data.org/v4"
 FOOTBALL_COMPETITION = "BSA"  # Brasileirão Série A
+
+# Reddit (optional collector)
+REDDIT_CLIENT_ID = os.environ.get("REDDIT_CLIENT_ID", "")
+REDDIT_CLIENT_SECRET = os.environ.get("REDDIT_CLIENT_SECRET", "")
+REDDIT_SUBREDDITS = [
+    "futebol", "CRFla", "palmeiras", "Corinthians", "SaoPauloFC",
+    "Vasco", "botafogo", "internacional", "gremio", "Cruzeiro", "atleticomg",
+]
+REDDIT_POLL_INTERVAL = 30
+
+# Twitter/X (optional collector — twscrape + ntscraper + xcancel fallback)
+TWITTER_COOKIES = os.environ.get("TWITTER_COOKIES", "")
+TWITTER_USERNAME = os.environ.get("TWITTER_USERNAME", "")
+TWITTER_PASSWORD = os.environ.get("TWITTER_PASSWORD", "")
+TWITTER_EMAIL = os.environ.get("TWITTER_EMAIL", "")
+TWITTER_EMAIL_PASSWORD = os.environ.get("TWITTER_EMAIL_PASSWORD", "")

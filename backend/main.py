@@ -11,8 +11,12 @@ from sqlalchemy import func
 from backend.config import (
     DATA_DIR, FRONTEND_URL, SNAPSHOT_INTERVAL,
     FOOTBALL_API_KEY, FOOTBALL_API_BASE, FOOTBALL_COMPETITION,
+    REDDIT_CLIENT_ID, REDDIT_CLIENT_SECRET, REDDIT_SUBREDDITS, REDDIT_POLL_INTERVAL,
+    TWITTER_COOKIES, TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_EMAIL, TWITTER_EMAIL_PASSWORD,
 )
 from backend.collector.football_api import FootballAPICollector
+from backend.collector.reddit import RedditCollector
+from backend.collector.twitter import TwitterCollector
 from backend.models.database import init_db, SessionLocal
 from backend.models.team import Team
 from backend.models.coach import Coach
@@ -318,6 +322,39 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("No FOOTBALL_API_KEY set — using seed data only")
 
+    # Reddit collector (optional, needs OAuth credentials)
+    reddit_collector = None
+    reddit_task = None
+    if REDDIT_CLIENT_ID:
+        reddit_collector = RedditCollector(
+            on_post=_process_post,
+            client_id=REDDIT_CLIENT_ID,
+            client_secret=REDDIT_CLIENT_SECRET,
+            subreddits=REDDIT_SUBREDDITS,
+            poll_interval=REDDIT_POLL_INTERVAL,
+        )
+        reddit_task = asyncio.create_task(reddit_collector.start())
+        logger.info("Reddit collector started (%d subreddits)", len(REDDIT_SUBREDDITS))
+    else:
+        logger.info("No REDDIT_CLIENT_ID set — Reddit collector disabled")
+
+    # Twitter collector (optional, needs cookies or credentials)
+    twitter_collector = None
+    twitter_task = None
+    if TWITTER_COOKIES or TWITTER_USERNAME:
+        twitter_collector = TwitterCollector(
+            on_post=_process_post,
+            cookies=TWITTER_COOKIES,
+            username=TWITTER_USERNAME,
+            password=TWITTER_PASSWORD,
+            email=TWITTER_EMAIL,
+            email_password=TWITTER_EMAIL_PASSWORD,
+        )
+        twitter_task = asyncio.create_task(twitter_collector.start())
+        logger.info("Twitter collector started (twscrape + ntscraper + xcancel)")
+    else:
+        logger.info("No TWITTER_COOKIES/TWITTER_USERNAME set — Twitter collector disabled")
+
     logger.info("Xingômetro started! Collecting from Bluesky Jetstream...")
     yield
 
@@ -330,6 +367,16 @@ async def lifespan(app: FastAPI):
         await football_collector.stop()
     if football_task:
         football_task.cancel()
+
+    if reddit_collector:
+        await reddit_collector.stop()
+    if reddit_task:
+        reddit_task.cancel()
+
+    if twitter_collector:
+        await twitter_collector.stop()
+    if twitter_task:
+        twitter_task.cancel()
 
 
 app = FastAPI(title="Xingômetro API", lifespan=lifespan)

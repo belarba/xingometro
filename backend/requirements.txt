@@ -6,3 +6,6 @@ httpx==0.28.1
 sse-starlette==2.2.1
 unidecode==1.3.8
 python-dotenv==1.0.1
+twscrape>=0.15
+ntscraper>=0.4
+beautifulsoup4>=4.12
