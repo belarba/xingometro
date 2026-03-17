@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -175,8 +176,15 @@ export default function PositionRoller({ rankings }: PositionRollerProps) {
             />
             <Tooltip content={<CustomTooltip />} />
 
-            {/* Hidden line to provide data points for Customized; actual rendering in ColoredPath */}
-            {/* We need a Line for Recharts to compute point positions used by Customized */}
+            {/* Hidden Line provides computed point positions to Customized via formattedGraphicalItems */}
+            <Line
+              type="monotone"
+              dataKey="position"
+              stroke="transparent"
+              dot={false}
+              activeDot={false}
+              isAnimationActive={false}
+            />
             <Customized component={(props: Record<string, unknown>) => <ColoredPath {...props} data={data} />} />
           </LineChart>
         </ResponsiveContainer>

@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -64,55 +64,58 @@ def get_correlation(
     db: Session = Depends(get_db),
 ):
     """Per-team-per-match correlation between goal diff and rage score."""
+    # Single aggregated query for post stats grouped by match_id + team_id
+    post_query = (
+        db.query(
+            Post.match_id,
+            Post.team_id,
+            func.count(Post.id).label("post_count"),
+            func.avg(Post.rage_score).label("avg_rage"),
+        )
+        .filter(Post.team_id.isnot(None), Post.match_id.isnot(None))
+        .group_by(Post.match_id, Post.team_id)
+    )
+    post_stats_map: dict[tuple[int, int], tuple[int, float]] = {}
+    for row in post_query.all():
+        post_stats_map[(row.match_id, row.team_id)] = (row.post_count, row.avg_rage or 0)
+
     # Get all finished matches, optionally filtered by round
     match_query = db.query(Match).filter(Match.status == "finished")
     if round_num is not None:
         match_query = match_query.filter(Match.round == round_num)
     matches = match_query.all()
 
+    # Collect all team IDs we need
+    team_ids = set()
+    for match in matches:
+        team_ids.add(match.home_team_id)
+        team_ids.add(match.away_team_id)
+
+    # Batch load teams
+    teams = {t.id: t for t in db.query(Team).filter(Team.id.in_(team_ids)).all()}
+
     results = []
     for match in matches:
-        # Process each team in the match (home and away)
         for is_home in [True, False]:
-            team_id = match.home_team_id if is_home else match.away_team_id
-
-            # Calculate goal diff from this team's perspective
-            if is_home:
-                goal_diff = match.home_score - match.away_score
-            else:
-                goal_diff = match.away_score - match.home_score
-
-            # Get rage stats for this team in this match
-            post_stats = (
-                db.query(
-                    func.count(Post.id).label("post_count"),
-                    func.avg(Post.rage_score).label("avg_rage"),
-                )
-                .filter(
-                    Post.match_id == match.id,
-                    Post.team_id == team_id,
-                    Post.team_id.isnot(None),
-                    Post.match_id.isnot(None),
-                )
-                .first()
-            )
-
-            post_count = post_stats.post_count or 0
-            if post_count == 0:
+            tid = match.home_team_id if is_home else match.away_team_id
+            stats = post_stats_map.get((match.id, tid))
+            if not stats or stats[0] == 0:
                 continue
 
-            team = db.query(Team).filter(Team.id == team_id).first()
+            team = teams.get(tid)
             if not team:
                 continue
 
+            goal_diff = (match.home_score - match.away_score) if is_home else (match.away_score - match.home_score)
+
             results.append({
                 "match_id": match.id,
-                "team_id": team_id,
+                "team_id": tid,
                 "team_name": team.name,
                 "short_name": team.short_name,
                 "goal_diff": goal_diff,
-                "avg_rage_score": round(post_stats.avg_rage or 0, 1),
-                "post_count": post_count,
+                "avg_rage_score": round(stats[1], 1),
+                "post_count": stats[0],
             })
 
     return results
@@ -121,7 +124,6 @@ def get_correlation(
 @router.get("/stats/position-history/{team_id}")
 def get_position_history(team_id: int, db: Session = Depends(get_db)):
     """Team's league position across rounds with rage data."""
-    from fastapi import HTTPException
 
     now = time.time()
     cached = _position_cache.get(team_id)
