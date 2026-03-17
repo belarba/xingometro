@@ -10,15 +10,19 @@ import TabNav from "./components/TabNav";
 import MatchStrip from "./components/MatchStrip";
 import StandingsTable from "./components/StandingsTable";
 import MatchList from "./components/MatchList";
+import ShieldGrid from "./components/ShieldGrid";
+import CorrelationScatter from "./components/CorrelationScatter";
+import PositionRoller from "./components/PositionRoller";
 import { useSSE } from "./hooks/useSSE";
 import { useRankings } from "./hooks/useRankings";
-import { fetchCoachRankings, fetchLiveStatus } from "./services/api";
-import type { CoachRanking, LiveStatus } from "./types";
+import { fetchCoachRankings, fetchLiveStatus, fetchMatches } from "./services/api";
+import type { CoachRanking, LiveStatus, Match } from "./types";
 
 export default function App() {
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [coachRankings, setCoachRankings] = useState<CoachRanking[]>([]);
   const [liveStatus, setLiveStatus] = useState<LiveStatus | null>(null);
+  const [matches, setMatches] = useState<Match[]>([]);
   const [activeTab, setActiveTab] = useState<"xingometro" | "classificacao">("xingometro");
 
   const { posts, latestRanking, isConnected } = useSSE();
@@ -29,6 +33,13 @@ export default function App() {
     fetchCoachRankings(selectedRound ?? undefined)
       .then(setCoachRankings)
       .catch(() => setCoachRankings([]));
+  }, [selectedRound]);
+
+  // Fetch matches for ShieldGrid
+  useEffect(() => {
+    fetchMatches(selectedRound ?? undefined)
+      .then(setMatches)
+      .catch(() => setMatches([]));
   }, [selectedRound]);
 
   // Fetch live status periodically
@@ -77,6 +88,17 @@ export default function App() {
                 <TopCoach coachRankings={coachRankings} />
                 <WordCloud round={selectedRound} />
                 <LiveFeed posts={posts} />
+              </div>
+            </div>
+            {/* Insights section */}
+            <div className="mt-8">
+              <h2 className="text-xl font-bold mb-4 text-gray-300">Insights</h2>
+              <div className="space-y-4">
+                <ShieldGrid rankings={rankings} matches={matches} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <CorrelationScatter round={selectedRound} />
+                  <PositionRoller rankings={rankings} />
+                </div>
               </div>
             </div>
           </>
