@@ -44,9 +44,17 @@ Busca standings da Football-Data.org `competitions/BSA/standings` e retorna a ta
 - Cache em memória de 30 minutos (standings não mudam durante jogos)
 - Registrar router no app principal
 
-### Endpoint existente: `GET /api/matches`
+### Alteração no endpoint: `GET /api/matches`
 
-Já suporta filtro por `round` e `status`. Sem alterações necessárias no backend.
+Já suporta filtro por `round` e `status`. Adicionar `home_short_name` e `away_short_name` na response para uso no `MatchStrip` (siglas dos times).
+
+### Utilitário compartilhado: resolução de times
+
+Extrair a lógica de resolução de nome de time → `team_id` para um módulo compartilhado (`backend/utils/team_resolver.py`) que pode ser usado tanto pelo `FootballAPICollector` quanto pelo novo endpoint de standings. Faz lookup por nome/alias na tabela `teams` do banco.
+
+### Cache
+
+O endpoint `/api/standings` usa cache TTL simples em memória (dict + timestamp). TTL de 30 minutos. Assume single-worker (uvicorn sem múltiplos workers). Cache não sobrevive restart — primeira request após restart faz call à API externa. Se a API externa falhar, retorna 503.
 
 ## Frontend
 
@@ -109,14 +117,25 @@ fetchStandings(): Promise<StandingEntry[]>
 - Ao vivo: borda/fundo vermelho sutil
 - Usa `fetchMatches(round)`
 
+### Estados de loading/erro/vazio
+
+Todos os componentes novos seguem o padrão existente no app:
+- **Loading:** texto "Carregando..." (consistente com outros componentes)
+- **Erro:** texto "Erro ao carregar dados" com retry automático
+- **Vazio:** `MatchStrip`/`MatchList` — "Nenhum jogo na rodada"; `StandingsTable` — "Classificação indisponível"
+
 ### Alterações em componentes existentes
 
 #### `App.tsx`
 - Adiciona estado `activeTab: "xingometro" | "classificacao"`
 - Renderiza `TabNav` abaixo da Navbar
+- `RoundFilter` visível em ambas as tabs — controla a rodada para `MatchStrip` e `MatchList`. A `StandingsTable` mostra sempre a classificação geral (não depende da rodada).
 - Renderiza conteúdo conforme tab ativa:
   - Xingômetro: `MatchStrip` + layout atual (RageRanking, Timeline, etc.)
   - Classificação: `StandingsTable` + `MatchList` em grid 2/3 + 1/3
+
+#### `types/index.ts`
+- Adicionar `home_short_name` e `away_short_name` ao tipo `Match`
 
 ## Fluxo de dados
 
@@ -142,5 +161,6 @@ fetchMatches() → MatchStrip (tab Xingômetro)
 ## Fora de escopo
 
 - Clicar num jogo para ver detalhes/timeline (pode ser futuro)
-- Filtro de rodada na tab Classificação (usa a rodada atual do RoundFilter existente)
 - Histórico de classificação por rodada
+- Logos/escudos dos times (Football-Data.org retorna `crest` URL mas não usaremos nesta versão)
+- Zonas de classificação dinâmicas (usamos posições fixas simplificadas: 1-4 Libertadores, 5-6 Sul-Americana, 17-20 Rebaixamento)
