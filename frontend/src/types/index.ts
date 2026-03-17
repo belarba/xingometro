@@ -47,6 +47,8 @@ export interface Match {
   away_team_id: number;
   home_team_name: string;
   away_team_name: string;
+  home_short_name: string;
+  away_short_name: string;
   home_score: number;
   away_score: number;
   status: string;
@@ -85,4 +87,19 @@ export interface LiveStatus {
   connected: boolean;
   posts_per_minute: number;
   active_matches: number;
+}
+
+export interface StandingEntry {
+  position: number;
+  team_id: number;
+  team_name: string;
+  short_name: string;
+  played_games: number;
+  won: number;
+  draw: number;
+  lost: number;
+  goals_for: number;
+  goals_against: number;
+  goal_difference: number;
+  points: number;
 }
