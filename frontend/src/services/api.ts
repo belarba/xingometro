@@ -6,6 +6,7 @@ import type {
   WordEntry,
   LiveStatus,
   TeamStats,
+  StandingEntry,
 } from "../types";
 
 function buildParams(params: Record<string, string | number | undefined>): string {
@@ -73,5 +74,11 @@ export async function fetchTeamStats(teamId: number): Promise<TeamStats> {
 export async function fetchLiveStatus(): Promise<LiveStatus> {
   const res = await fetch("/api/live/status");
   if (!res.ok) throw new Error("Failed to fetch live status");
+  return res.json();
+}
+
+export async function fetchStandings(): Promise<StandingEntry[]> {
+  const res = await fetch("/api/standings");
+  if (!res.ok) throw new Error("Failed to fetch standings");
   return res.json();
 }
