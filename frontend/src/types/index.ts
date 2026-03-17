@@ -103,3 +103,22 @@ export interface StandingEntry {
   goal_difference: number;
   points: number;
 }
+
+export interface CorrelationEntry {
+  match_id: number;
+  team_id: number;
+  team_name: string;
+  short_name: string;
+  goal_diff: number;
+  avg_rage_score: number;
+  post_count: number;
+}
+
+// result: V = Vitoria (win), E = Empate (draw), D = Derrota (loss)
+export interface PositionHistoryEntry {
+  round: number;
+  position: number;
+  avg_rage_score: number;
+  result: "V" | "E" | "D";
+  score: string;
+}
