@@ -28,6 +28,7 @@ from backend.models.post import Post
 from backend.models.rage_snapshot import RageSnapshot
 from backend.collector.jetstream import JetstreamCollector
 from backend.collector.filters import is_football_post
+from backend.collector.match_window import match_window
 from backend.analyzer.dictionary import swear_dictionary
 from backend.analyzer.scorer import calculate_rage
 from backend.analyzer.target_detector import target_detector
@@ -119,7 +120,12 @@ def _load_seed_data():
 
 
 def _process_post(raw_post: dict):
-    """Pipeline: filter → analyze → persist → broadcast."""
+    """Pipeline: match window → filter → analyze → persist → broadcast."""
+    # Only process posts when matches are in the active window
+    # (1h before kickoff until 2h after final whistle)
+    if not match_window.is_active():
+        return
+
     text = raw_post["text"]
 
     if not is_football_post(text, _all_team_aliases):
@@ -145,6 +151,11 @@ def _process_post(raw_post: dict):
 
     # Detect target
     target = target_detector.detect(text, swear_positions)
+
+    # Only accept posts targeting teams with active matches
+    active_teams = match_window.get_active_team_ids()
+    if target.team_id and target.team_id not in active_teams:
+        return
 
     # Find active match for this team
     match_id = None
