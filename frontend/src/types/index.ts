@@ -72,6 +72,15 @@ export interface WordEntry {
   level: number;
 }
 
+export interface TeamStats {
+  team_id: number;
+  team_name: string;
+  total_posts: number;
+  avg_rage_score: number;
+  max_rage_score: number;
+  top_swear_words: Record<string, number>;
+}
+
 export interface LiveStatus {
   connected: boolean;
   posts_per_minute: number;

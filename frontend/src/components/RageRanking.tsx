@@ -1,4 +1,6 @@
+import { useState } from "react";
 import type { RankingEntry } from "../types";
+import TeamDetailModal from "./TeamDetailModal";
 
 interface RageRankingProps {
   rankings: RankingEntry[];
@@ -20,6 +22,7 @@ function getRageTextColor(score: number): string {
 
 export default function RageRanking({ rankings }: RageRankingProps) {
   const maxScore = Math.max(...rankings.map((r) => r.avg_rage_score), 1);
+  const [selectedTeam, setSelectedTeam] = useState<RankingEntry | null>(null);
 
   return (
     <div className="bg-white/[0.03] border border-white/[0.08] rounded-xl p-5">
@@ -30,7 +33,11 @@ export default function RageRanking({ rankings }: RageRankingProps) {
       ) : (
         <div className="space-y-3">
           {rankings.map((entry, idx) => (
-            <div key={entry.team_id} className="flex items-center gap-3">
+            <div
+              key={entry.team_id}
+              className="flex items-center gap-3 cursor-pointer rounded-lg px-1 py-0.5 -mx-1 hover:bg-white/[0.05] transition-colors"
+              onClick={() => setSelectedTeam(entry)}
+            >
               <span className="text-gray-500 text-sm w-6 text-right font-mono">
                 {idx + 1}
               </span>
@@ -60,6 +67,15 @@ export default function RageRanking({ rankings }: RageRankingProps) {
             </div>
           ))}
         </div>
+      )}
+
+      {selectedTeam && (
+        <TeamDetailModal
+          teamId={selectedTeam.team_id}
+          teamName={selectedTeam.team_name}
+          shortName={selectedTeam.short_name}
+          onClose={() => setSelectedTeam(null)}
+        />
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import type {
   Match,
   WordEntry,
   LiveStatus,
+  TeamStats,
 } from "../types";
 
 function buildParams(params: Record<string, string | number | undefined>): string {
@@ -60,6 +61,12 @@ export async function fetchWords(
     `/api/words${buildParams({ round, team_id: teamId })}`
   );
   if (!res.ok) throw new Error("Failed to fetch words");
+  return res.json();
+}
+
+export async function fetchTeamStats(teamId: number): Promise<TeamStats> {
+  const res = await fetch(`/api/stats/${teamId}`);
+  if (!res.ok) throw new Error("Failed to fetch team stats");
   return res.json();
 }
 
