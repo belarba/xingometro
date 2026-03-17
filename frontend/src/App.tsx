@@ -6,6 +6,10 @@ import RageTimeline from "./components/RageTimeline";
 import TopCoach from "./components/TopCoach";
 import WordCloud from "./components/WordCloud";
 import LiveFeed from "./components/LiveFeed";
+import TabNav from "./components/TabNav";
+import MatchStrip from "./components/MatchStrip";
+import StandingsTable from "./components/StandingsTable";
+import MatchList from "./components/MatchList";
 import { useSSE } from "./hooks/useSSE";
 import { useRankings } from "./hooks/useRankings";
 import { fetchCoachRankings, fetchLiveStatus } from "./services/api";
@@ -15,6 +19,7 @@ export default function App() {
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [coachRankings, setCoachRankings] = useState<CoachRanking[]>([]);
   const [liveStatus, setLiveStatus] = useState<LiveStatus | null>(null);
+  const [activeTab, setActiveTab] = useState<"xingometro" | "classificacao">("xingometro");
 
   const { posts, latestRanking, isConnected } = useSSE();
   const { rankings } = useRankings(selectedRound, latestRanking);
@@ -48,6 +53,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Navbar round={selectedRound} liveStatus={mergedLiveStatus} />
+      <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
       <div className="px-6 py-4">
         <div className="mb-4">
@@ -57,20 +63,29 @@ export default function App() {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
-          {/* Left column */}
-          <div className="space-y-4">
-            <RageRanking rankings={rankings} />
-            <RageTimeline matchId={null} round={selectedRound} />
+        {activeTab === "xingometro" ? (
+          <>
+            <div className="mb-4">
+              <MatchStrip round={selectedRound} />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
+              <div className="space-y-4">
+                <RageRanking rankings={rankings} />
+                <RageTimeline matchId={null} round={selectedRound} />
+              </div>
+              <div className="space-y-4">
+                <TopCoach coachRankings={coachRankings} />
+                <WordCloud round={selectedRound} />
+                <LiveFeed posts={posts} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-4">
+            <StandingsTable />
+            <MatchList round={selectedRound} />
           </div>
-
-          {/* Right column */}
-          <div className="space-y-4">
-            <TopCoach coachRankings={coachRankings} />
-            <WordCloud round={selectedRound} />
-            <LiveFeed posts={posts} />
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
