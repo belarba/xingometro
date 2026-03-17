@@ -28,3 +28,44 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* ShieldGrid animations */
+@keyframes shield-pulse {
+  0%, 100% { box-shadow: 0 0 8px 0 currentColor; }
+  50% { box-shadow: 0 0 20px 4px currentColor; }
+}
+
+@keyframes shield-pulse-strong {
+  0%, 100% { box-shadow: 0 0 12px 2px currentColor; }
+  50% { box-shadow: 0 0 28px 8px currentColor; }
+}
+
+@keyframes shield-shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+  20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+@keyframes shield-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.shield-pulse {
+  animation: shield-pulse 2s ease-in-out infinite;
+}
+
+.shield-pulse-strong {
+  animation: shield-pulse-strong 1.5s ease-in-out infinite;
+}
+
+.shield-shake {
+  animation: shield-shake 0.6s ease-in-out infinite, shield-pulse-strong 1.5s ease-in-out infinite;
+}
+
+.shield-gradient-bg {
+  background: linear-gradient(270deg, #ef4444, #f97316, #ef4444);
+  background-size: 200% 200%;
+  animation: shield-gradient 3s ease infinite;
+}
