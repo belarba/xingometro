@@ -7,6 +7,8 @@ import type {
   LiveStatus,
   TeamStats,
   StandingEntry,
+  CorrelationEntry,
+  PositionHistoryEntry,
 } from "../types";
 
 function buildParams(params: Record<string, string | number | undefined>): string {
@@ -80,5 +82,17 @@ export async function fetchLiveStatus(): Promise<LiveStatus> {
 export async function fetchStandings(): Promise<StandingEntry[]> {
   const res = await fetch("/api/standings");
   if (!res.ok) throw new Error("Failed to fetch standings");
+  return res.json();
+}
+
+export async function fetchCorrelation(round?: number): Promise<CorrelationEntry[]> {
+  const res = await fetch(`/api/stats/correlation${buildParams({ round })}`);
+  if (!res.ok) throw new Error("Failed to fetch correlation data");
+  return res.json();
+}
+
+export async function fetchPositionHistory(teamId: number): Promise<PositionHistoryEntry[]> {
+  const res = await fetch(`/api/stats/position-history/${teamId}`);
+  if (!res.ok) throw new Error("Failed to fetch position history");
   return res.json();
 }
