@@ -45,10 +45,11 @@ A scatter chart revealing the correlation between match results and fan rage. Ea
   ```json
   {
     "match_id": 42,
+    "team_id": 5,
     "team_name": "Corinthians",
     "short_name": "COR",
     "goal_diff": -2,
-    "avg_rage": 8.7,
+    "avg_rage_score": 8.7,
     "post_count": 156
   }
   ```
@@ -63,12 +64,14 @@ A scatter chart revealing the correlation between match results and fan rage. Ea
 
 **Quadrant labels** (humorous, via ReferenceLine + Label):
 
+Note: X axis has positive values (wins) on the RIGHT and negative (losses) on the LEFT.
+
 | Quadrant | Condition | Label |
 |----------|-----------|-------|
-| Top-left | Win + high rage | "Ganhou e ainda xingou!" |
-| Top-right | Loss + high rage | "Perdeu e SURTOU" |
-| Bottom-left | Win + low rage | "Ganhou tranquilo" |
-| Bottom-right | Loss + low rage | "Perdeu e aceitou" |
+| Top-right | Win + high rage | "Ganhou e ainda xingou!" |
+| Top-left | Loss + high rage | "Perdeu e SURTOU" |
+| Bottom-right | Win + low rage | "Ganhou tranquilo" |
+| Bottom-left | Loss + low rage | "Perdeu e aceitou" |
 
 **Interactions**:
 - Hover tooltip: team name, match score, rage score, post count
@@ -81,12 +84,12 @@ A scatter chart revealing the correlation between match results and fan rage. Ea
 A line chart showing a team's league position across rounds, with line color changing dynamically based on the rage score for each round.
 
 **Data source** (new endpoint):
-- `GET /api/stats/position-history?team_id=X` -> returns:
+- `GET /api/stats/position-history/{team_id}` -> returns:
   ```json
   [
-    { "round": 1, "position": 5, "avg_rage": 3.2, "result": "V", "score": "2x0" },
-    { "round": 2, "position": 3, "avg_rage": 2.1, "result": "V", "score": "1x0" },
-    { "round": 3, "position": 8, "avg_rage": 8.7, "result": "D", "score": "0x3" }
+    { "round": 1, "position": 5, "avg_rage_score": 3.2, "result": "V", "score": "2x0" },
+    { "round": 2, "position": 3, "avg_rage_score": 2.1, "result": "V", "score": "1x0" },
+    { "round": 3, "position": 8, "avg_rage_score": 8.7, "result": "D", "score": "0x3" }
   ]
   ```
 - Backend reconstructs standings round-by-round to calculate historical positions
@@ -118,17 +121,17 @@ Returns per-team-per-match data for scatter plot visualization.
 
 **Query params**: `round` (optional int) - filter to specific round
 
-**Response**: Array of objects with `match_id`, `team_name`, `short_name`, `goal_diff`, `avg_rage`, `post_count`.
+**Response**: Array of objects with `match_id`, `team_id`, `team_name`, `short_name`, `goal_diff`, `avg_rage_score`, `post_count`.
 
-**Implementation**: SQL query joining `matches` and `posts` tables, grouping by team per match, calculating goal difference from team perspective and average rage score.
+**Implementation**: SQL query joining `matches` and `posts` tables, grouping by team per match, calculating goal difference from team perspective and average rage score. Must filter `Post.team_id IS NOT NULL AND Post.match_id IS NOT NULL` since both are nullable.
 
-### `GET /api/stats/position-history`
+### `GET /api/stats/position-history/{team_id}`
 
 Returns a team's classification position across all played rounds.
 
-**Query params**: `team_id` (required int)
+**Path params**: `team_id` (required int) - consistent with existing `/api/stats/{team_id}` pattern
 
-**Response**: Array of objects with `round`, `position`, `avg_rage`, `result` (V/E/D), `score`.
+**Response**: Array of objects with `round`, `position`, `avg_rage_score`, `result` (V=Vitoria/E=Empate/D=Derrota), `score`.
 
 **Implementation**: For each completed round, reconstruct the standings table (points, goal difference, goals scored as tiebreakers) and determine the team's position. Also calculate average rage for that team in that round's matches.
 
@@ -157,17 +160,19 @@ On mobile: all stack vertically (full width).
 ```typescript
 interface CorrelationEntry {
   match_id: number;
+  team_id: number;
   team_name: string;
   short_name: string;
   goal_diff: number;
-  avg_rage: number;
+  avg_rage_score: number;
   post_count: number;
 }
 
+// result: V = Vitoria (win), E = Empate (draw), D = Derrota (loss)
 interface PositionHistoryEntry {
   round: number;
   position: number;
-  avg_rage: number;
+  avg_rage_score: number;
   result: "V" | "E" | "D";
   score: string;
 }
@@ -180,6 +185,17 @@ fetchCorrelation(round?: number): Promise<CorrelationEntry[]>
 fetchPositionHistory(teamId: number): Promise<PositionHistoryEntry[]>
 ```
 
+## States
+
+All three components follow the same pattern for non-happy-path states:
+- **Loading**: Pulsing skeleton placeholders matching the component's shape (grid of rectangles for ShieldGrid, chart-shaped skeleton for the other two). Consistent with existing component loading patterns.
+- **Error**: Inline error message with retry button. No modal or toast.
+- **Empty** (no data yet): Friendly message explaining data will appear once matches are played and posts are collected.
+
+## Filter Strategy
+
+The Scatter Plot uses the existing `RoundFilter` component. The ShieldGrid always shows current/latest data. The PositionRoller has its own team selector dropdown. Each component manages its own filter state independently.
+
 ## Technical Decisions
 
 - **Escudo em Chamas**: Pure CSS animations (keyframes for shake, pulse, glow). No external animation library needed. Uses Tailwind's arbitrary values and `@keyframes` in index.css.
@@ -188,7 +204,7 @@ fetchPositionHistory(teamId: number): Promise<PositionHistoryEntry[]>
   - (a) Multiple `<Line>` components, one per segment, clipped to their range
   - (b) Custom SVG path via `<Customized>` component
   - Recommend option (b) for cleaner output.
-- **Position history calculation**: This is the most computationally expensive endpoint. Should be cached aggressively (standings don't change retroactively). Use same TTL-based caching pattern as the existing `/api/standings` endpoint.
+- **Position history calculation**: This is the most computationally expensive endpoint. Should be cached aggressively (standings don't change retroactively). Use an in-memory dict with TTL (e.g., 5 minutes) keyed by `team_id`. Invalidate on new match results.
 
 ## File Structure (new files)
 
