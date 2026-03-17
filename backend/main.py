@@ -32,7 +32,7 @@ from backend.collector.match_window import match_window
 from backend.analyzer.dictionary import swear_dictionary
 from backend.analyzer.scorer import calculate_rage
 from backend.analyzer.target_detector import target_detector
-from backend.api import rankings, timeline, stats, matches, live
+from backend.api import rankings, timeline, stats, matches, live, standings
 from backend.api.live import broadcast_post, broadcast_ranking_update, set_connected
 
 logging.basicConfig(level=logging.INFO)
@@ -429,6 +429,7 @@ app.include_router(timeline.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(matches.router, prefix="/api")
 app.include_router(live.router, prefix="/api")
+app.include_router(standings.router, prefix="/api")
 
 # --- Serve frontend static files in production ---
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
