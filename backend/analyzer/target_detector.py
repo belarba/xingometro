@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 
 from unidecode import unidecode
 
 from backend.config import DATA_DIR
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -18,34 +21,78 @@ class TargetResult:
 class TargetDetector:
     def __init__(self):
         self._teams: list[dict] = []
-        self._coaches: list[dict] = []
         self._team_patterns: list[tuple[re.Pattern, int]] = []
         self._coach_patterns: list[tuple[re.Pattern, int, int]] = []
-        self._load()
+        self._load_from_json()
 
-    def _load(self):
+    def _load_from_json(self):
+        """Load teams and coaches from static JSON files (initial/fallback)."""
         with open(DATA_DIR / "teams.json", encoding="utf-8") as f:
             self._teams = json.load(f)
         with open(DATA_DIR / "coaches.json", encoding="utf-8") as f:
-            self._coaches = json.load(f)
+            coaches = json.load(f)
 
-        for team in self._teams:
+        self._team_patterns = self._build_team_patterns(self._teams)
+        self._coach_patterns = self._build_coach_patterns(coaches)
+
+    def reload(self):
+        """Reload coach patterns from the database.
+
+        Uses atomic reference swap — builds a new list then replaces the
+        reference, so detect() never sees a partially-built list.
+        """
+        from backend.models.database import SessionLocal
+        from backend.models.coach import Coach
+
+        db = SessionLocal()
+        try:
+            coaches = db.query(Coach).all()
+            if not coaches:
+                return
+
+            coach_dicts = [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "aliases": c.aliases or [],
+                    "team_id": c.team_id,
+                }
+                for c in coaches
+            ]
+            new_patterns = self._build_coach_patterns(coach_dicts)
+            # Atomic swap
+            self._coach_patterns = new_patterns
+            logger.info("TargetDetector reloaded %d coaches from DB", len(coaches))
+        finally:
+            db.close()
+
+    @staticmethod
+    def _build_team_patterns(teams: list[dict]) -> list[tuple[re.Pattern, int]]:
+        patterns = []
+        for team in teams:
             names = [team["name"], team["short_name"]] + team.get("aliases", [])
             for name in names:
                 pattern = re.compile(
-                    r"\b" + re.escape(self._normalize(name)) + r"\b", re.IGNORECASE
+                    r"\b" + re.escape(TargetDetector._normalize(name)) + r"\b",
+                    re.IGNORECASE,
                 )
-                self._team_patterns.append((pattern, team["id"]))
+                patterns.append((pattern, team["id"]))
+        return patterns
 
-        for coach in self._coaches:
+    @staticmethod
+    def _build_coach_patterns(
+        coaches: list[dict],
+    ) -> list[tuple[re.Pattern, int, int]]:
+        patterns = []
+        for coach in coaches:
             names = [coach["name"]] + coach.get("aliases", [])
             for name in names:
                 pattern = re.compile(
-                    r"\b" + re.escape(self._normalize(name)) + r"\b", re.IGNORECASE
+                    r"\b" + re.escape(TargetDetector._normalize(name)) + r"\b",
+                    re.IGNORECASE,
                 )
-                self._coach_patterns.append(
-                    (pattern, coach["id"], coach["team_id"])
-                )
+                patterns.append((pattern, coach["id"], coach["team_id"]))
+        return patterns
 
     @staticmethod
     def _normalize(text: str) -> str:
@@ -63,8 +110,9 @@ class TargetDetector:
             for match in pattern.finditer(normalized):
                 team_mentions.append((match.start(), match.end(), team_id))
 
-        # Find coach mentions
-        for pattern, coach_id, coach_team_id in self._coach_patterns:
+        # Find coach mentions (read reference once for consistency)
+        coach_patterns = self._coach_patterns
+        for pattern, coach_id, coach_team_id in coach_patterns:
             if pattern.search(normalized):
                 result.coach_id = coach_id
                 if result.team_id is None:

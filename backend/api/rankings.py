@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from backend.models.database import get_db
 from backend.models.post import Post
 from backend.models.team import Team
-from backend.models.coach import Coach
+from backend.models.coach import Coach, CoachAssignment
 from backend.models.match import Match
 
 router = APIRouter()
@@ -60,17 +60,37 @@ def get_coach_rankings(
     limit: int = Query(10, ge=1, le=20),
     db: Session = Depends(get_db),
 ):
-    query = db.query(
-        Post.coach_id,
-        Coach.name.label("coach_name"),
-        Team.name.label("team_name"),
-        func.avg(Post.rage_score).label("avg_rage_score"),
-        func.count(Post.id).label("post_count"),
-    ).join(Coach, Post.coach_id == Coach.id).join(Team, Coach.team_id == Team.id)
-
     if round_num is not None:
-        query = query.join(Match, Post.match_id == Match.id).filter(
-            Match.round == round_num
+        # Use CoachAssignment for round-aware team mapping
+        query = (
+            db.query(
+                Post.coach_id,
+                Coach.name.label("coach_name"),
+                func.coalesce(
+                    CoachAssignment.team_id, Coach.team_id
+                ).label("resolved_team_id"),
+                func.avg(Post.rage_score).label("avg_rage_score"),
+                func.count(Post.id).label("post_count"),
+            )
+            .join(Coach, Post.coach_id == Coach.id)
+            .join(Match, Post.match_id == Match.id)
+            .outerjoin(
+                CoachAssignment,
+                (CoachAssignment.coach_id == Coach.id)
+                & (CoachAssignment.round == round_num),
+            )
+            .filter(Match.round == round_num)
+        )
+    else:
+        query = (
+            db.query(
+                Post.coach_id,
+                Coach.name.label("coach_name"),
+                Coach.team_id.label("resolved_team_id"),
+                func.avg(Post.rage_score).label("avg_rage_score"),
+                func.count(Post.id).label("post_count"),
+            )
+            .join(Coach, Post.coach_id == Coach.id)
         )
 
     query = query.filter(Post.coach_id.isnot(None))
@@ -81,7 +101,7 @@ def get_coach_rankings(
         .all()
     )
 
-    # Get top words for each coach
+    # Get top words for each coach and resolve team names
     rankings = []
     for r in results:
         # Aggregate swear_words from posts for this coach
@@ -100,11 +120,15 @@ def get_coach_rankings(
             sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:5]
         )
 
+        # Resolve team name from the resolved_team_id
+        team = db.query(Team.name).filter(Team.id == r.resolved_team_id).first()
+        team_name = team.name if team else "Desconhecido"
+
         rankings.append(
             {
                 "coach_id": r.coach_id,
                 "coach_name": r.coach_name,
-                "team_name": r.team_name,
+                "team_name": team_name,
                 "avg_rage_score": round(r.avg_rage_score, 1) if r.avg_rage_score else 0,
                 "post_count": r.post_count,
                 "top_words": top_words,

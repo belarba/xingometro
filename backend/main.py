@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from sqlalchemy import func
+from sqlalchemy import func, inspect as sa_inspect, text
 
 from backend.config import (
     DATA_DIR, FRONTEND_URL, SNAPSHOT_INTERVAL, PROJECT_ROOT,
@@ -20,9 +20,9 @@ from backend.config import (
 from backend.collector.football_api import FootballAPICollector
 from backend.collector.reddit import RedditCollector
 from backend.collector.twitter import TwitterCollector
-from backend.models.database import init_db, SessionLocal
+from backend.models.database import init_db, SessionLocal, engine
 from backend.models.team import Team
-from backend.models.coach import Coach
+from backend.models.coach import Coach, CoachAssignment
 from backend.models.match import Match
 from backend.models.post import Post
 from backend.models.rage_snapshot import RageSnapshot
@@ -39,6 +39,17 @@ logger = logging.getLogger(__name__)
 
 # All team aliases for filtering
 _all_team_aliases: list[str] = []
+
+
+def _run_migrations():
+    """Add new columns to existing tables if missing."""
+    inspector = sa_inspect(engine)
+    columns = [c["name"] for c in inspector.get_columns("coaches")]
+    if "external_id" not in columns:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE coaches ADD COLUMN external_id TEXT UNIQUE"))
+            conn.commit()
+        logger.info("Migration: added external_id column to coaches")
 
 
 def _load_seed_data():
@@ -305,7 +316,17 @@ collector = JetstreamCollector(on_post=_process_post)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    _run_migrations()
     _load_seed_data()
+
+    # Reload target detector from DB if we have coach assignments from a previous run
+    db = SessionLocal()
+    try:
+        if db.query(CoachAssignment).first() is not None:
+            target_detector.reload()
+            logger.info("Reloaded target detector from DB coach assignments")
+    finally:
+        db.close()
 
     collector_task = asyncio.create_task(collector.start())
     set_connected(True)

@@ -10,7 +10,10 @@ from typing import Optional
 import httpx
 from sqlalchemy.orm import Session
 
+from unidecode import unidecode
+
 from backend.models.database import SessionLocal
+from backend.models.coach import Coach, CoachAssignment
 from backend.models.match import Match
 from backend.models.team import Team
 
@@ -53,6 +56,7 @@ class FootballAPICollector:
         self._running = False
         self._state = _State.IDLE
         self._current_matchday: Optional[int] = None
+        self._current_season: Optional[int] = None
         # Cache team name → id mapping
         self._team_cache: dict = {}
 
@@ -103,6 +107,9 @@ class FootballAPICollector:
             db = SessionLocal()
             try:
                 self._sync_matches(matches, db)
+                coaches_changed = self._sync_coaches(
+                    matches, self._current_matchday, db
+                )
                 db.commit()
                 logger.info(
                     "Synced %d matches (state=%s, matchday=%d)",
@@ -110,6 +117,10 @@ class FootballAPICollector:
                     self._state.value,
                     self._current_matchday,
                 )
+                if coaches_changed:
+                    from backend.analyzer.target_detector import target_detector
+                    target_detector.reload()
+                    logger.info("Reloaded target detector after coach changes")
             except Exception as e:
                 db.rollback()
                 logger.error("Error syncing matches: %s", e)
@@ -184,6 +195,17 @@ class FootballAPICollector:
 
         season = data.get("currentSeason", {})
         matchday = season.get("currentMatchday")
+
+        # Extract season year from startDate (e.g. "2025-04-01")
+        start_date = season.get("startDate", "")
+        if start_date and len(start_date) >= 4:
+            try:
+                self._current_season = int(start_date[:4])
+            except ValueError:
+                pass
+        if self._current_season is None:
+            self._current_season = datetime.now(timezone.utc).year
+
         if matchday is not None:
             return int(matchday)
         return None
@@ -328,6 +350,103 @@ class FootballAPICollector:
             )
 
         return mapped
+
+    def _sync_coaches(self, matches: list, matchday: int, db: Session) -> bool:
+        """Extract coach data from match responses and sync to DB.
+
+        Returns True if any coach data changed.
+        """
+        season = self._current_season or datetime.now(timezone.utc).year
+        changed = False
+
+        for m in matches:
+            for side in ("homeTeam", "awayTeam"):
+                team_data = m.get(side, {})
+                coach_data = team_data.get("coach")
+                if not coach_data or not coach_data.get("id"):
+                    continue
+
+                team_name = team_data.get("name", "")
+                team_id = self._resolve_team(team_name)
+                if not team_id:
+                    continue
+
+                api_coach_id = str(coach_data["id"])
+                coach_name = coach_data.get("name", "").strip()
+                if not coach_name:
+                    continue
+
+                coach = self._resolve_or_create_coach(
+                    api_coach_id, coach_name, team_id, db
+                )
+                if not coach:
+                    continue
+
+                # Update Coach.team_id to latest assignment
+                if coach.team_id != team_id:
+                    coach.team_id = team_id
+                    changed = True
+
+                # Upsert CoachAssignment
+                assignment = (
+                    db.query(CoachAssignment)
+                    .filter(
+                        CoachAssignment.coach_id == coach.id,
+                        CoachAssignment.round == matchday,
+                        CoachAssignment.season == season,
+                    )
+                    .first()
+                )
+                if assignment is None:
+                    db.add(CoachAssignment(
+                        coach_id=coach.id,
+                        team_id=team_id,
+                        round=matchday,
+                        season=season,
+                    ))
+                    changed = True
+                elif assignment.team_id != team_id:
+                    assignment.team_id = team_id
+                    changed = True
+
+        return changed
+
+    def _resolve_or_create_coach(
+        self, api_coach_id: str, name: str, team_id: int, db: Session
+    ) -> Optional[Coach]:
+        """Find existing coach by external_id or name match, or create new."""
+        # 1. Match by external_id
+        coach = (
+            db.query(Coach).filter(Coach.external_id == api_coach_id).first()
+        )
+        if coach:
+            if coach.name != name:
+                coach.name = name
+            return coach
+
+        # 2. Match seed coaches by normalized name + team
+        normalized_api = unidecode(name).lower().strip()
+        candidates = db.query(Coach).filter(
+            Coach.external_id.is_(None),
+            Coach.team_id == team_id,
+        ).all()
+        for c in candidates:
+            normalized_db = unidecode(c.name).lower().strip()
+            if normalized_db == normalized_api or normalized_db in normalized_api or normalized_api in normalized_db:
+                c.external_id = api_coach_id
+                c.name = name
+                return c
+
+        # 3. Create new coach
+        coach = Coach(
+            name=name,
+            aliases=[],
+            team_id=team_id,
+            external_id=api_coach_id,
+        )
+        db.add(coach)
+        db.flush()
+        return coach
 
     def _build_team_cache(self, db: Session):
         """Build name → id cache from all teams."""
