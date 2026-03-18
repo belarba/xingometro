@@ -65,12 +65,18 @@ class MatchWindow:
 
             active_ids: set[int] = set()
             for m in matches:
-                window_start = m.started_at - PRE_MATCH
+                # Ensure datetimes are timezone-aware (DB may store naive UTC)
+                started = m.started_at if m.started_at.tzinfo else m.started_at.replace(tzinfo=timezone.utc)
+                finished = None
                 if m.finished_at:
-                    window_end = m.finished_at + POST_MATCH
+                    finished = m.finished_at if m.finished_at.tzinfo else m.finished_at.replace(tzinfo=timezone.utc)
+
+                window_start = started - PRE_MATCH
+                if finished:
+                    window_end = finished + POST_MATCH
                 else:
                     # For live or scheduled matches without finish time
-                    window_end = m.started_at + FALLBACK_DURATION
+                    window_end = started + FALLBACK_DURATION
 
                 if window_start <= now <= window_end:
                     active_ids.add(m.home_team_id)
