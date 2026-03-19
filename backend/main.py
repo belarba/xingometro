@@ -53,11 +53,33 @@ def _run_migrations():
         logger.info("Migration: added external_id column to coaches")
 
 
+def _sync_coaches():
+    """Sync coach data from JSON to DB (handles team changes, name fixes)."""
+    db = SessionLocal()
+    try:
+        with open(DATA_DIR / "coaches.json", encoding="utf-8") as f:
+            coaches_data = json.load(f)
+        for c in coaches_data:
+            existing = db.query(Coach).filter(Coach.id == c["id"]).first()
+            if existing:
+                if (existing.name != c["name"]
+                        or existing.team_id != c["team_id"]
+                        or existing.aliases != c.get("aliases", [])):
+                    existing.name = c["name"]
+                    existing.team_id = c["team_id"]
+                    existing.aliases = c.get("aliases", [])
+                    logger.info("Updated coach %s (team_id=%d)", c["name"], c["team_id"])
+        db.commit()
+    finally:
+        db.close()
+
+
 def _load_seed_data():
     """Load teams, coaches, and matches from JSON seed files."""
     db = SessionLocal()
     try:
         if db.query(Team).count() > 0:
+            _sync_coaches()
             return
 
         logger.info("Loading seed data...")
