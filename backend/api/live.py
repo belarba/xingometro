@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import time
 from collections import deque
 from datetime import datetime, timezone
 
@@ -16,13 +17,27 @@ router = APIRouter()
 # Shared state for SSE broadcasting
 _post_buffer: deque[dict] = deque(maxlen=SSE_BUFFER_SIZE)
 _subscribers: list[asyncio.Queue] = []
-_stats = {"connected": False, "post_count": 0, "last_minute_count": 0}
+_stats = {"connected": False, "post_count": 0}
+
+# Sliding window for posts/min: stores timestamps of recent posts
+_post_timestamps: deque[float] = deque()
+_POSTS_PER_MIN_WINDOW = 60  # seconds
+
+
+def _posts_per_minute() -> float:
+    """Calculate posts per minute using a sliding window."""
+    now = time.monotonic()
+    # Evict timestamps older than the window
+    while _post_timestamps and _post_timestamps[0] < now - _POSTS_PER_MIN_WINDOW:
+        _post_timestamps.popleft()
+    return len(_post_timestamps)
 
 
 def broadcast_post(post_data: dict):
     """Called by the pipeline when a new post is analyzed."""
     _post_buffer.append(post_data)
     _stats["post_count"] += 1
+    _post_timestamps.append(time.monotonic())
     event = {"type": "new_post", "data": post_data}
     for queue in _subscribers:
         try:
@@ -65,16 +80,16 @@ async def live_feed():
             # Send recent posts as initial batch
             for post in _post_buffer:
                 yield {
-                    "event": "message",
-                    "data": json.dumps({"type": "new_post", "data": post}),
+                    "event": "new_post",
+                    "data": json.dumps(post),
                 }
 
             while True:
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=30)
                     yield {
-                        "event": "message",
-                        "data": json.dumps(event),
+                        "event": event["type"],
+                        "data": json.dumps(event["data"]),
                     }
                 except asyncio.TimeoutError:
                     # Send keepalive
@@ -98,7 +113,7 @@ def live_status():
 
     return {
         "connected": _stats["connected"],
-        "posts_per_minute": _stats.get("last_minute_count", 0),
+        "posts_per_minute": _posts_per_minute(),
         "active_matches": active,
         "total_posts_collected": _stats["post_count"],
     }
