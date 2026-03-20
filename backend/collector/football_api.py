@@ -59,6 +59,8 @@ class FootballAPICollector:
         self._current_season: Optional[int] = None
         # Cache team name → id mapping
         self._team_cache: dict = {}
+        self._last_coach_sync: Optional[datetime] = None
+        self._COACH_SYNC_INTERVAL = timedelta(hours=12)
 
     async def start(self):
         """Main polling loop with adaptive intervals."""
@@ -66,6 +68,12 @@ class FootballAPICollector:
         logger.info(
             "FootballAPICollector started (competition=%s)", self._competition
         )
+
+        # Initial coach sync on startup
+        try:
+            await self.sync_coaches_from_teams()
+        except Exception as e:
+            logger.error("Initial coach sync failed: %s", e)
 
         while self._running:
             try:
@@ -129,6 +137,13 @@ class FootballAPICollector:
 
             # Update state based on match statuses
             self._update_state(matches)
+
+        # Periodic coach sync (every 12h, only in IDLE/COOLDOWN)
+        if self._state in (_State.IDLE, _State.COOLDOWN) and self._should_sync_coaches():
+            try:
+                await self.sync_coaches_from_teams()
+            except Exception as e:
+                logger.error("Periodic coach sync failed: %s", e)
 
     async def _api_request(
         self, client: httpx.AsyncClient, endpoint: str, params: Optional[dict] = None
@@ -447,6 +462,90 @@ class FootballAPICollector:
         db.add(coach)
         db.flush()
         return coach
+
+    async def sync_coaches_from_teams(self):
+        """Fetch all teams from competition and sync coach data.
+
+        Calls GET /competitions/{id}/teams which returns every team
+        with its current coach. Handles coach=null (team without coach).
+        """
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            data = await self._api_request(
+                client, f"competitions/{self._competition}/teams"
+            )
+        if not data:
+            logger.warning("Could not fetch teams for coach sync")
+            return
+
+        teams_data = data.get("teams", [])
+        if not teams_data:
+            return
+
+        db = SessionLocal()
+        try:
+            if not self._team_cache:
+                self._build_team_cache(db)
+
+            changed = False
+            for team_data in teams_data:
+                team_name = team_data.get("name", "")
+                team_id = self._resolve_team(team_name)
+                if not team_id:
+                    continue
+
+                coach_data = team_data.get("coach")
+                if not coach_data or not coach_data.get("id"):
+                    # Team has no coach (e.g. fired, not yet replaced)
+                    logger.info(
+                        "No coach for team %s (id=%d)", team_name, team_id
+                    )
+                    continue
+
+                api_coach_id = str(coach_data["id"])
+                coach_name = coach_data.get("name", "").strip()
+                if not coach_name:
+                    continue
+
+                coach = self._resolve_or_create_coach(
+                    api_coach_id, coach_name, team_id, db
+                )
+                if not coach:
+                    continue
+
+                if coach.team_id != team_id:
+                    logger.info(
+                        "Coach %s transferred: team %d → %d",
+                        coach_name, coach.team_id, team_id,
+                    )
+                    coach.team_id = team_id
+                    changed = True
+
+                # Check if name was updated by _resolve_or_create_coach
+                if db.is_modified(coach):
+                    changed = True
+
+            db.commit()
+            self._last_coach_sync = datetime.now(timezone.utc)
+            logger.info(
+                "Coach sync complete: %d teams processed", len(teams_data)
+            )
+
+            if changed:
+                from backend.analyzer.target_detector import target_detector
+                target_detector.reload()
+                logger.info("Reloaded target detector after coach sync")
+
+        except Exception as e:
+            db.rollback()
+            logger.error("Error in coach sync: %s", e)
+        finally:
+            db.close()
+
+    def _should_sync_coaches(self) -> bool:
+        """Check if enough time has passed since last coach sync."""
+        if self._last_coach_sync is None:
+            return True
+        return datetime.now(timezone.utc) - self._last_coach_sync > self._COACH_SYNC_INTERVAL
 
     def _build_team_cache(self, db: Session):
         """Build name → id cache from all teams."""
