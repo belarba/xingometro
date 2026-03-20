@@ -78,12 +78,25 @@ class JetstreamCollector:
         except (ValueError, AttributeError):
             ts = datetime.now(timezone.utc)
 
+        # Extract reply parent external_id if this is a reply
+        reply_to_id = None
+        reply = record.get("reply")
+        if reply:
+            parent_uri = reply.get("parent", {}).get("uri", "")
+            # URI format: at://did:plc:xxx/app.bsky.feed.post/rkey
+            parts = parent_uri.split("/")
+            if len(parts) >= 5 and parts[3] == "app.bsky.feed.post":
+                parent_did = parts[2]  # did:plc:xxx
+                parent_rkey = parts[4]
+                reply_to_id = f"{parent_did}/{parent_rkey}"
+
         return {
             "external_id": f"{did}/{rkey}",
             "author_handle": did,
             "text": text,
             "created_at": ts,
             "source": "bluesky",
+            "reply_to_id": reply_to_id,
         }
 
     async def stop(self):

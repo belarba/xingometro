@@ -52,6 +52,13 @@ def _run_migrations():
             conn.commit()
         logger.info("Migration: added external_id column to coaches")
 
+    post_columns = [c["name"] for c in inspector.get_columns("posts")]
+    if "reply_to_id" not in post_columns:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE posts ADD COLUMN reply_to_id TEXT"))
+            conn.commit()
+        logger.info("Migration: added reply_to_id column to posts")
+
 
 def _sync_coaches():
     """Sync coach data from JSON to DB (handles team changes, name fixes)."""
@@ -174,31 +181,54 @@ def _process_post(raw_post: dict):
     # Detect target
     target = target_detector.detect(text, swear_positions)
 
+    # If no team detected, try to inherit from reply parent
+    reply_to_id = raw_post.get("reply_to_id")
+    if not target.team_id and reply_to_id:
+        db = SessionLocal()
+        try:
+            parent = (
+                db.query(Post)
+                .filter(Post.external_id == reply_to_id)
+                .first()
+            )
+            if parent and parent.team_id:
+                target.team_id = parent.team_id
+                target.coach_id = parent.coach_id
+        finally:
+            db.close()
+
+    # Discard posts without team association
+    if not target.team_id:
+        logger.debug(
+            "Discarded post (no team_id): source=%s external_id=%s",
+            raw_post["source"], raw_post["external_id"],
+        )
+        return
+
     # Only accept posts targeting teams with active matches
     active_teams = match_window.get_active_team_ids()
-    if target.team_id and target.team_id not in active_teams:
+    if target.team_id not in active_teams:
         return
 
     # Find active match for this team
     match_id = None
-    if target.team_id:
-        db = SessionLocal()
-        try:
-            match = (
-                db.query(Match)
-                .filter(
-                    Match.status == "live",
-                    (
-                        (Match.home_team_id == target.team_id)
-                        | (Match.away_team_id == target.team_id)
-                    ),
-                )
-                .first()
+    db = SessionLocal()
+    try:
+        match = (
+            db.query(Match)
+            .filter(
+                Match.status == "live",
+                (
+                    (Match.home_team_id == target.team_id)
+                    | (Match.away_team_id == target.team_id)
+                ),
             )
-            if match:
-                match_id = match.id
-        finally:
-            db.close()
+            .first()
+        )
+        if match:
+            match_id = match.id
+    finally:
+        db.close()
 
     # Persist
     db = SessionLocal()
@@ -211,6 +241,7 @@ def _process_post(raw_post: dict):
             team_id=target.team_id,
             coach_id=target.coach_id,
             match_id=match_id,
+            reply_to_id=reply_to_id,
             rage_score=rage_score,
             swear_words=[m.word for m in swear_matches],
             created_at=raw_post["created_at"],

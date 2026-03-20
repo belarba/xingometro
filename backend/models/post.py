@@ -20,6 +20,7 @@ class Post(Base):
     team_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("teams.id"), nullable=True)
     coach_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("coaches.id"), nullable=True)
     match_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("matches.id"), nullable=True)
+    reply_to_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     rage_score: Mapped[float] = mapped_column(Float, default=0.0)
     swear_words: Mapped[list] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
