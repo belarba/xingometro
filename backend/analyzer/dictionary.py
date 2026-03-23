@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass
 
 from unidecode import unidecode
@@ -17,7 +18,7 @@ class SwearMatch:
 class SwearDictionary:
     def __init__(self):
         self._terms: list[dict] = []
-        self._normalized_map: dict[str, dict] = {}
+        self._patterns: list[tuple[re.Pattern, dict]] = []
         self._load()
 
     def _load(self):
@@ -25,9 +26,14 @@ class SwearDictionary:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         self._terms = data["terms"]
+        self._patterns = []
         for term in self._terms:
             normalized = self._normalize(term["word"])
-            self._normalized_map[normalized] = term
+            pattern = re.compile(
+                r"\b" + re.escape(normalized) + r"\b",
+                re.IGNORECASE,
+            )
+            self._patterns.append((pattern, term))
 
     @staticmethod
     def _normalize(text: str) -> str:
@@ -36,8 +42,8 @@ class SwearDictionary:
     def find_matches(self, text: str) -> list[SwearMatch]:
         normalized = self._normalize(text)
         matches = []
-        for norm_word, term in self._normalized_map.items():
-            if norm_word in normalized:
+        for pattern, term in self._patterns:
+            if pattern.search(normalized):
                 matches.append(
                     SwearMatch(
                         word=term["word"],
