@@ -61,7 +61,11 @@ def _run_migrations():
 
 
 def _sync_coaches():
-    """Sync coach data from JSON to DB (handles team changes, name fixes)."""
+    """Sync coach data from JSON to DB (only for coaches not yet linked to API).
+
+    Coaches with an external_id have been linked to football-data.org and
+    their data is authoritative from the API — seed JSON must NOT overwrite them.
+    """
     db = SessionLocal()
     try:
         with open(DATA_DIR / "coaches.json", encoding="utf-8") as f:
@@ -69,14 +73,32 @@ def _sync_coaches():
         for c in coaches_data:
             existing = db.query(Coach).filter(Coach.id == c["id"]).first()
             if existing:
+                # Skip coaches already linked to the API — their data is authoritative
+                if existing.external_id:
+                    continue
                 if (existing.name != c["name"]
                         or existing.team_id != c["team_id"]
                         or existing.aliases != c.get("aliases", [])):
                     existing.name = c["name"]
                     existing.team_id = c["team_id"]
                     existing.aliases = c.get("aliases", [])
-                    logger.info("Updated coach %s (team_id=%d)", c["name"], c["team_id"])
+                    logger.info("Updated coach %s (team_id=%d) from seed", c["name"], c["team_id"])
         db.commit()
+    finally:
+        db.close()
+
+
+def _populate_team_aliases():
+    """Populate _all_team_aliases from DB for the is_football_post filter."""
+    db = SessionLocal()
+    try:
+        teams = db.query(Team).all()
+        for team in teams:
+            _all_team_aliases.append(team.name)
+            if team.aliases:
+                _all_team_aliases.extend(team.aliases)
+            # NOTE: short_names (SAO, INT, etc.) intentionally excluded —
+            # they're 3-char codes that match common Portuguese words.
     finally:
         db.close()
 
@@ -87,6 +109,7 @@ def _load_seed_data():
     try:
         if db.query(Team).count() > 0:
             _sync_coaches()
+            _populate_team_aliases()
             return
 
         logger.info("Loading seed data...")
@@ -104,7 +127,6 @@ def _load_seed_data():
             )
             _all_team_aliases.extend(t.get("aliases", []))
             _all_team_aliases.append(t["name"])
-            _all_team_aliases.append(t["short_name"])
 
         with open(DATA_DIR / "coaches.json", encoding="utf-8") as f:
             coaches_data = json.load(f)

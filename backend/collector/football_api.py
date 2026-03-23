@@ -439,11 +439,10 @@ class FootballAPICollector:
                 coach.name = name
             return coach
 
-        # 2. Match seed coaches by normalized name + team
+        # 2. Match seed coaches by normalized name (any team — handles transfers)
         normalized_api = unidecode(name).lower().strip()
         candidates = db.query(Coach).filter(
             Coach.external_id.is_(None),
-            Coach.team_id == team_id,
         ).all()
         for c in candidates:
             normalized_db = unidecode(c.name).lower().strip()

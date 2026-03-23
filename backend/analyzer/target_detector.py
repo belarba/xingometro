@@ -66,14 +66,23 @@ class TargetDetector:
         finally:
             db.close()
 
+    # Minimum alias length for pattern matching to avoid matching
+    # common Portuguese words (e.g. "SAO" → "são", "FOR" → "for")
+    _MIN_PATTERN_LENGTH = 3
+
     @staticmethod
     def _build_team_patterns(teams: list[dict]) -> list[tuple[re.Pattern, int]]:
         patterns = []
         for team in teams:
-            names = [team["name"], team["short_name"]] + team.get("aliases", [])
+            # Skip short_name — 3-char codes like SAO, INT, FOR match
+            # common Portuguese words and cause false positives
+            names = [team["name"]] + team.get("aliases", [])
             for name in names:
+                normalized = TargetDetector._normalize(name)
+                if len(normalized) < TargetDetector._MIN_PATTERN_LENGTH:
+                    continue
                 pattern = re.compile(
-                    r"\b" + re.escape(TargetDetector._normalize(name)) + r"\b",
+                    r"\b" + re.escape(normalized) + r"\b",
                     re.IGNORECASE,
                 )
                 patterns.append((pattern, team["id"]))
