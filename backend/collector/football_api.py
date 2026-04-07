@@ -95,35 +95,58 @@ class FootballAPICollector:
         logger.info("FootballAPICollector stopped")
 
     async def _poll_cycle(self):
-        """One poll cycle: fetch matches from API, sync to DB."""
+        """One poll cycle: fetch matches from API, sync to DB.
+
+        Re-checks the API's current matchday on every poll so the collector
+        advances when a new round opens. Also fetches the next matchday so
+        upcoming fixtures land in the DB before kickoff (the match_window
+        gate needs scheduled rows to open).
+        """
         async with httpx.AsyncClient(timeout=15.0) as client:
-            # Get current matchday if we don't have it
-            if self._current_matchday is None:
-                self._current_matchday = await self._fetch_current_matchday(
-                    client
-                )
+            # Always re-fetch current matchday — the API advances it when
+            # a round opens, and we must follow.
+            api_matchday = await self._fetch_current_matchday(client)
+            if api_matchday is None:
                 if self._current_matchday is None:
                     logger.warning("Could not determine current matchday")
                     return
+                # Keep using last known good matchday on transient API failures
+            else:
+                if self._current_matchday != api_matchday:
+                    logger.info(
+                        "Matchday advanced: %s → %d",
+                        self._current_matchday, api_matchday,
+                    )
+                    self._current_matchday = api_matchday
 
-            # Fetch matches for the matchday
-            matches = await self._fetch_matches(client, self._current_matchday)
-            if matches is None:
+            # Fetch current matchday + next matchday so upcoming fixtures
+            # are in the DB before they start. Capped at 38 (max in BSA).
+            matchdays_to_fetch = [self._current_matchday]
+            if self._current_matchday < 38:
+                matchdays_to_fetch.append(self._current_matchday + 1)
+
+            all_matches: list = []
+            for md in matchdays_to_fetch:
+                matches = await self._fetch_matches(client, md)
+                if matches:
+                    all_matches.extend(matches)
+
+            if not all_matches:
                 return
 
             # Sync to database
             db = SessionLocal()
             try:
-                self._sync_matches(matches, db)
+                self._sync_matches(all_matches, db)
                 coaches_changed = self._sync_coaches(
-                    matches, self._current_matchday, db
+                    all_matches, self._current_matchday, db
                 )
                 db.commit()
                 logger.info(
-                    "Synced %d matches (state=%s, matchday=%d)",
-                    len(matches),
+                    "Synced %d matches across matchdays %s (state=%s)",
+                    len(all_matches),
+                    matchdays_to_fetch,
                     self._state.value,
-                    self._current_matchday,
                 )
                 if coaches_changed:
                     from backend.analyzer.target_detector import target_detector
@@ -136,7 +159,7 @@ class FootballAPICollector:
                 db.close()
 
             # Update state based on match statuses
-            self._update_state(matches)
+            self._update_state(all_matches)
 
         # Periodic coach sync (every 12h, only in IDLE/COOLDOWN)
         if self._state in (_State.IDLE, _State.COOLDOWN) and self._should_sync_coaches():
